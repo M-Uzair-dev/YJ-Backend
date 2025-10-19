@@ -1,0 +1,233 @@
+Build a full backend using Node.js, Express, MongoDB (Mongoose), JWT, Helmet, bcrypt, crypto, and Nodemailer.
+The backend must be cleanly structured into:
+
+/controllers
+/models
+/routes
+/middleware
+/utils
+
+
+and must include a .env.example and a routes.md documenting all endpoints, request bodies, and expected responses.
+
+👤 USER MODEL
+
+Fields:
+
+name: String (required)
+
+email: String (unique, required)
+
+password: String (hashed with bcrypt)
+
+role: Enum [user, admin] (default user)
+
+balance: Number (default 0)
+
+direct_income: Number (default 0)
+
+passive_income: Number (default 0)
+
+referral_code: String (8-char unique hex generated via crypto)
+
+referral_of: ObjectId (optional, ref to User)
+
+status: Enum [pending, active] (default pending)
+
+plan: Enum [knowic, learnic, masteric] (optional, assigned upon approval)
+
+Rules:
+
+Each user must have a unique 8-character referral_code (auto-generated).
+
+referral_of is optional. If provided, it must refer to an existing user.
+
+Duplicate referral codes are not allowed; regenerate until unique.
+
+A new user always starts as pending.
+
+Password is hashed before save.
+
+Plan is empty at signup — assigned only upon approval of a request.
+
+🔐 AUTHENTICATION & SECURITY
+
+Signup:
+
+Referral code auto-generated.
+
+referral_of may be null or reference an existing user.
+
+Reject if referral_of does not exist.
+
+Reject if email already in use.
+
+Hash password with bcrypt.
+
+Respond with JWT and sanitized user data (excluding password).
+
+Login:
+
+Login with email and password.
+
+Return JWT on success.
+
+JWT Protected Routes:
+
+/me and all business logic routes require JWT.
+
+JWT stores user id and role.
+
+Rate Limiting:
+
+Apply express-rate-limit globally.
+
+Helmet:
+
+Must be used for all routes.
+
+✉️ PASSWORD RESET FLOW
+
+Forgot Password:
+
+Generate a token using crypto (valid for 1 hour).
+
+Save it in DB with expiry time.
+
+Send email using Nodemailer.
+
+Link format: ${FRONTEND_URL}/reset/:id/:token
+
+Reset Password:
+
+Validate token and expiry.
+
+Hash new password and replace old one.
+
+💰 PLAN HIERARCHY
+
+There are three hardcoded plans:
+
+Type	Plan	Direct	Passive
+Passive Income	Knowic	$2	$16
+Passive Income	Learnic	$4	$40
+Passive Income	Masteric	$7	$85
+
+Plans are ENUM: ["knowic", "learnic", "masteric"].
+
+Once approved, a user's plan is permanently stored in their User model.
+
+Referral restrictions:
+
+Knowic users can only refer Knowic users.
+
+Learnic users can refer Knowic and Learnic.
+
+Masteric users can refer any plan.
+
+🧾 REQUEST MODEL
+
+Fields:
+
+user_id: ObjectId (required) — the pending user
+
+sender_id: ObjectId (required) — the referrer or self if no referrer
+
+proof_link: String (required) — image URL
+
+status: Enum [pending, approved, rejected] (default pending)
+
+plan: Enum [knowic, learnic, masteric] (required)
+
+Rules:
+
+Only a referrer can create a request for their referred user.
+Example: if B is referred by A → only A can create a request for B.
+
+Before creating:
+
+Validate user_id exists and is pending.
+
+Confirm that user_id.referral_of == sender_id.
+
+Confirm that no pending request already exists for that user.
+
+Confirm that sender’s plan permits the selected plan (based on hierarchy).
+
+If a user has no referrer:
+
+They can create their own request (sender_id == user_id).
+
+referral_of remains empty.
+
+⚙️ REQUEST APPROVAL / REJECTION FLOW
+
+Admin-only route: POST /requests/approve/:id
+
+Approves a request.
+
+Sets request.status = "approved".
+
+Sets the corresponding user’s status = "active" and assigns their plan from the request.
+
+Triggers income distribution via Mongoose transaction:
+
+sender_id.direct_income += DirectPlanValue
+
+referrer_of(sender_id).passive_income += PassivePlanValue
+
+Creates Transaction documents for both users:
+
+Fields: user_id, type (direct or passive), amount, timestamp.
+
+If rejected:
+
+Delete the request entirely.
+
+💸 TRANSACTION MODEL
+
+Fields:
+
+user_id: ObjectId
+
+type: Enum [direct, passive, withdrawal]
+
+amount: Number
+
+createdAt: Date (default now)
+
+Each /me call will aggregate all transactions and ensure that:
+
+balance = sum of all user's transaction amounts
+
+
+If mismatched, auto-correct balance to match.
+
+👁️ /me ROUTE (JWT Protected)
+
+Returns:
+
+Full user data (excluding password)
+
+Current balance and income summary
+
+Grouped referral lists:
+
+knowic_referrals: Array of { name, joinDate }
+
+learnic_referrals: Array of { name, joinDate }
+
+masteric_referrals: Array of { name, joinDate }
+
+Referral groups determined based on referred users’ plan values.
+
+🧠 SUMMARY OF ROUTES (to be documented in routes.md)
+Method	Route	Description	Access
+POST	/auth/signup	Create user	Public
+POST	/auth/login	Login user	Public
+POST	/auth/forgot	Send reset link	Public
+POST	/auth/reset/:id/:token	Reset password	Public
+GET	/me	Get current user data + referrals + grouped plans	Auth
+POST	/requests	Create new request	Auth
+POST	/requests/approve/:id	Approve request (update incomes & status)	Admin
+POST	/requests/reject/:id	Reject and delete request	Admin
