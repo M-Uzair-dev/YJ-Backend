@@ -1,20 +1,20 @@
-const mongoose = require('mongoose');
-const Request = require('../models/Request');
-const User = require('../models/User');
-const Transaction = require('../models/Transaction');
+const mongoose = require("mongoose");
+const Request = require("../models/Request");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
 
 // Plan pricing structure
 const PLAN_PRICING = {
-  knowic: { direct: 2, passive: 16 },
-  learnic: { direct: 4, passive: 40 },
-  masteric: { direct: 7, passive: 85 },
+  knowic: { price: 24, direct: 16, passive: 2 },
+  learnic: { price: 59, direct: 40, passive: 4 },
+  masteric: { price: 130, direct: 85, passive: 7 },
 };
 
 // Plan hierarchy rules
 const PLAN_HIERARCHY = {
-  knowic: ['knowic'],
-  learnic: ['knowic', 'learnic'],
-  masteric: ['knowic', 'learnic', 'masteric'],
+  knowic: ["knowic"],
+  learnic: ["knowic", "learnic"],
+  masteric: ["knowic", "learnic", "masteric"],
 };
 
 // @desc    Create a new request
@@ -29,7 +29,7 @@ exports.createRequest = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'Proof image is required',
+        message: "Proof image is required",
       });
     }
 
@@ -40,14 +40,14 @@ exports.createRequest = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
-    if (user.status !== 'pending') {
+    if (user.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: 'User is not in pending status',
+        message: "User is not in pending status",
       });
     }
 
@@ -57,7 +57,7 @@ exports.createRequest = async (req, res) => {
       if (user.referral_of.toString() !== sender_id.toString()) {
         return res.status(403).json({
           success: false,
-          message: 'Only the referrer can create a request for this user',
+          message: "Only the referrer can create a request for this user",
         });
       }
 
@@ -66,7 +66,7 @@ exports.createRequest = async (req, res) => {
       if (!sender.plan) {
         return res.status(400).json({
           success: false,
-          message: 'You must have an active plan to create requests',
+          message: "You must have an active plan to create requests",
         });
       }
 
@@ -82,7 +82,8 @@ exports.createRequest = async (req, res) => {
       if (user_id.toString() !== sender_id.toString()) {
         return res.status(403).json({
           success: false,
-          message: 'This user has no referrer. Only they can create their own request',
+          message:
+            "This user has no referrer. Only they can create their own request",
         });
       }
     }
@@ -90,13 +91,13 @@ exports.createRequest = async (req, res) => {
     // Check if pending request already exists for this user
     const existingRequest = await Request.findOne({
       user_id,
-      status: 'pending',
+      status: "pending",
     });
 
     if (existingRequest) {
       return res.status(400).json({
         success: false,
-        message: 'A pending request already exists for this user',
+        message: "A pending request already exists for this user",
       });
     }
 
@@ -109,19 +110,19 @@ exports.createRequest = async (req, res) => {
     });
 
     const populatedRequest = await Request.findById(request._id)
-      .populate('user_id', 'name email')
-      .populate('sender_id', 'name email');
+      .populate("user_id", "name email")
+      .populate("sender_id", "name email");
 
     res.status(201).json({
       success: true,
-      message: 'Request created successfully',
+      message: "Request created successfully",
       request: populatedRequest,
     });
   } catch (error) {
-    console.error('Create request error:', error);
+    console.error("Create request error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: error.message,
     });
   }
@@ -135,38 +136,53 @@ exports.getAllRequests = async (req, res) => {
     // Get query parameters with defaults
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const status = req.query.status || 'pending'; // Default to pending only
+    const status = req.query.status || "pending"; // Default to pending only
 
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
 
     // Build query filter
-    const filter = status === 'all' ? {} : { status };
+    const filter = status === "all" ? {} : { status };
 
     // Get total count for pagination
     const total = await Request.countDocuments(filter);
 
     // Get paginated requests
     const requests = await Request.find(filter)
-      .populate('user_id', 'name email referral_code')
-      .populate('sender_id', 'name email referral_code')
+      .populate("user_id", "name email referral_code")
+      .populate("sender_id", "name email referral_code")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
+    // Add expected payment amount to each request
+    const requestsWithPayment = requests.map((request) => {
+      const planPricing = PLAN_PRICING[request.plan];
+      const isSelfApproval = request.user_id._id.toString() === request.sender_id._id.toString();
+      const expectedPayment = isSelfApproval
+        ? planPricing.price
+        : planPricing.price - planPricing.direct;
+
+      return {
+        ...request.toObject(),
+        expectedPayment,
+        isSelfApproval,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: requests.length,
+      count: requestsWithPayment.length,
       total,
       page,
       pages: Math.ceil(total / limit),
-      requests,
+      requests: requestsWithPayment,
     });
   } catch (error) {
-    console.error('Get all requests error:', error);
+    console.error("Get all requests error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: error.message,
     });
   }
@@ -189,26 +205,26 @@ exports.approveRequest = async (req, res) => {
       session.endSession();
       return res.status(404).json({
         success: false,
-        message: 'Request not found',
+        message: "Request not found",
       });
     }
 
-    if (request.status !== 'pending') {
+    if (request.status !== "pending") {
       await session.abortTransaction();
       session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'Request has already been processed',
+        message: "Request has already been processed",
       });
     }
 
     // Update request status
-    request.status = 'approved';
+    request.status = "approved";
     await request.save({ session });
 
     // Update user status and plan
     const user = await User.findById(request.user_id).session(session);
-    user.status = 'active';
+    user.status = "active";
     user.plan = request.plan;
     await user.save({ session });
 
@@ -216,7 +232,10 @@ exports.approveRequest = async (req, res) => {
     const pricing = PLAN_PRICING[request.plan];
 
     // Check if user has a referrer (sender is the referrer)
-    if (user.referral_of && user.referral_of.toString() !== request.user_id.toString()) {
+    if (
+      user.referral_of &&
+      user.referral_of.toString() !== request.user_id.toString()
+    ) {
       // Give direct income to sender
       const sender = await User.findById(request.sender_id).session(session);
       sender.direct_income += pricing.direct;
@@ -228,7 +247,7 @@ exports.approveRequest = async (req, res) => {
         [
           {
             user_id: sender._id,
-            type: 'direct',
+            type: "direct",
             amount: pricing.direct,
           },
         ],
@@ -237,7 +256,9 @@ exports.approveRequest = async (req, res) => {
 
       // Give passive income to sender's referrer (if exists)
       if (sender.referral_of) {
-        const grandReferrer = await User.findById(sender.referral_of).session(session);
+        const grandReferrer = await User.findById(sender.referral_of).session(
+          session
+        );
         if (grandReferrer) {
           grandReferrer.passive_income += pricing.passive;
           grandReferrer.balance += pricing.passive;
@@ -248,7 +269,7 @@ exports.approveRequest = async (req, res) => {
             [
               {
                 user_id: grandReferrer._id,
-                type: 'passive',
+                type: "passive",
                 amount: pricing.passive,
               },
             ],
@@ -263,21 +284,21 @@ exports.approveRequest = async (req, res) => {
     session.endSession();
 
     const updatedRequest = await Request.findById(id)
-      .populate('user_id', 'name email status plan')
-      .populate('sender_id', 'name email');
+      .populate("user_id", "name email status plan")
+      .populate("sender_id", "name email");
 
     res.status(200).json({
       success: true,
-      message: 'Request approved successfully',
+      message: "Request approved successfully",
       request: updatedRequest,
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error('Approve request error:', error);
+    console.error("Approve request error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: error.message,
     });
   }
@@ -295,14 +316,14 @@ exports.rejectRequest = async (req, res) => {
     if (!request) {
       return res.status(404).json({
         success: false,
-        message: 'Request not found',
+        message: "Request not found",
       });
     }
 
-    if (request.status !== 'pending') {
+    if (request.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: 'Only pending requests can be rejected',
+        message: "Only pending requests can be rejected",
       });
     }
 
@@ -311,13 +332,13 @@ exports.rejectRequest = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Request rejected and deleted successfully',
+      message: "Request rejected and deleted successfully",
     });
   } catch (error) {
-    console.error('Reject request error:', error);
+    console.error("Reject request error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: "Server error",
       error: error.message,
     });
   }

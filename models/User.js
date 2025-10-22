@@ -45,8 +45,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
     },
     referral_of: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: mongoose.Schema.Types.Mixed, // Can be ObjectId (for actual referrer) or String (for "pending_request")
       default: null,
     },
     status: {
@@ -58,6 +57,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['knowic', 'learnic', 'masteric'],
       default: null,
+    },
+    banned: {
+      type: Boolean,
+      default: false,
     },
     resetPasswordToken: {
       type: String,

@@ -11,6 +11,14 @@ const path = require('path');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const requestRoutes = require('./routes/requestRoutes');
+const transactionRoutes = require('./routes/transactionRoutes');
+const withdrawRoutes = require('./routes/withdrawRoutes');
+const ebookRoutes = require('./routes/ebookRoutes');
+const leaderboardRoutes = require('./routes/leaderboardRoutes');
+
+// Import cron jobs
+const { startLeaderboardJob } = require('./jobs/leaderboardJob');
+const { startResetJobs } = require('./jobs/resetJobs');
 
 // Initialize express app
 const app = express();
@@ -24,6 +32,9 @@ app.use(morgan('dev')); // Logging
 
 // Serve static files from proofs directory
 app.use('/proofs', express.static(path.join(__dirname, 'proofs')));
+
+// Serve static files from ebooks directory
+app.use('/ebooks', express.static(path.join(__dirname, 'ebooks')));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -58,6 +69,10 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/requests', requestRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api', withdrawRoutes);
+app.use('/api/ebooks', ebookRoutes);
+app.use('/api', leaderboardRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -82,6 +97,11 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`=� Server running on port ${PORT}`);
   console.log(`=� Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Start cron jobs after server is running
+  startLeaderboardJob();
+  startResetJobs();
+  console.log(' Leaderboard cron jobs started successfully');
 });
 
 // Handle unhandled promise rejections

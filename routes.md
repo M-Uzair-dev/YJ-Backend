@@ -161,7 +161,55 @@ Base URL: `http://localhost:5000/api`
 
 ## User Routes
 
-### 5. Get Current User
+### 5. Get All Users
+**GET** `/users`
+
+**Access:** Private (Admin only)
+
+**Description:** Get all users with pagination and statistics
+
+**Headers:**
+```
+Authorization: Bearer JWT_TOKEN
+```
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `limit`: Items per page (default: 10)
+
+**Example Request:**
+```
+GET /api/users?page=1&limit=10
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "count": 10,
+  "total": 47,
+  "page": 1,
+  "pages": 5,
+  "users": [
+    {
+      "_id": "userId",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "totalReferrals": 5,
+      "totalIncome": 150
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- 401: Not authorized
+- 403: User role is not authorized (admin only)
+- 500: Server error
+
+---
+
+### 6. Get Current User
 **GET** `/me`
 
 **Access:** Private (JWT required)
@@ -224,7 +272,7 @@ Authorization: Bearer JWT_TOKEN
 
 ## Request Routes
 
-### 6. Create Request
+### 7. Create Request
 **POST** `/requests`
 
 **Access:** Private (JWT required)
@@ -299,7 +347,7 @@ proof_image: [File] (required - image file, max 5MB, formats: jpeg, jpg, png, gi
 
 ---
 
-### 7. Get All Requests
+### 8. Get All Requests
 **GET** `/requests`
 
 **Access:** Private (Admin only)
@@ -361,7 +409,7 @@ GET /api/requests?page=1&limit=5&status=pending
 
 ---
 
-### 8. Approve Request
+### 9. Approve Request
 **POST** `/requests/approve/:id`
 
 **Access:** Private (Admin only)
@@ -427,7 +475,7 @@ Authorization: Bearer JWT_TOKEN
 
 ---
 
-### 9. Reject Request
+### 10. Reject Request
 **POST** `/requests/reject/:id`
 
 **Access:** Private (Admin only)
@@ -455,6 +503,62 @@ Authorization: Bearer JWT_TOKEN
 - 401: Not authorized
 - 403: User role is not authorized (admin only)
 - 404: Request not found
+- 500: Server error
+
+---
+
+## Transaction Routes
+
+### 11. Get All Transactions
+**GET** `/transactions`
+
+**Access:** Private (Admin only)
+
+**Description:** Get all transactions with pagination
+
+**Headers:**
+```
+Authorization: Bearer JWT_TOKEN
+```
+
+**Query Parameters:**
+- `page`: Page number (default: 1)
+- `limit`: Items per page (default: 10)
+
+**Example Request:**
+```
+GET /api/transactions?page=1&limit=10
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "count": 10,
+  "total": 47,
+  "page": 1,
+  "pages": 5,
+  "transactions": [
+    {
+      "_id": "transactionId",
+      "type": "direct",
+      "amount": 2,
+      "userName": "John Doe",
+      "userEmail": "john@example.com",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Transaction Types:**
+- `direct`: Direct income from referrals
+- `passive`: Passive income from sub-referrals
+- `withdrawal`: Withdrawal transactions
+
+**Error Responses:**
+- 401: Not authorized
+- 403: User role is not authorized (admin only)
 - 500: Server error
 
 ---

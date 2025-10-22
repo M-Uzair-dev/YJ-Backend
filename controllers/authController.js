@@ -63,6 +63,7 @@ exports.signup = async (req, res) => {
       referral_of: user.referral_of,
       status: user.status,
       plan: user.plan,
+      banned: user.banned,
       createdAt: user.createdAt,
     };
 
@@ -107,6 +108,14 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check if user is banned
+    if (user.banned) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been banned. Please contact support.',
+      });
+    }
+
     // Generate token
     const token = generateToken(user._id, user.role);
 
@@ -123,6 +132,7 @@ exports.login = async (req, res) => {
       referral_of: user.referral_of,
       status: user.status,
       plan: user.plan,
+      banned: user.banned,
       createdAt: user.createdAt,
     };
 
