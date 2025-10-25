@@ -62,6 +62,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    profileImage: {
+      type: String,
+      default: null,
+    },
+    country: {
+      type: String,
+      required: [true, 'Country is required'],
+      trim: true,
+    },
     resetPasswordToken: {
       type: String,
       select: false,

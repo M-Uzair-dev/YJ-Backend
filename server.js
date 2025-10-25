@@ -24,7 +24,12 @@ const { startResetJobs } = require('./jobs/resetJobs');
 const app = express();
 
 // Middleware
-app.use(helmet()); // Security headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false, // Disable CSP to allow images to load
+  })
+); // Security headers
 app.use(cors({ origin: '*' })); // CORS - Allow all origins
 app.use(express.json()); // Body parser
 app.use(express.urlencoded({ extended: true })); // URL encoded data
@@ -35,6 +40,9 @@ app.use('/proofs', express.static(path.join(__dirname, 'proofs')));
 
 // Serve static files from ebooks directory
 app.use('/ebooks', express.static(path.join(__dirname, 'ebooks')));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rate limiting
 const limiter = rateLimit({

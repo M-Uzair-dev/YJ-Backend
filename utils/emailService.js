@@ -1,11 +1,11 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 // Create reusable transporter
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+    secure: process.env.EMAIL_SECURE === "true", // true for 465, false for other ports
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -18,9 +18,9 @@ exports.sendPasswordResetEmail = async (email, resetUrl) => {
   const transporter = createTransporter();
 
   const mailOptions = {
-    from: `"Referral App" <${process.env.EMAIL_USER}>`,
+    from: `"YJ Network" <${process.env.EMAIL_USER}>`,
     to: email,
-    subject: 'Password Reset Request',
+    subject: "Password Reset Request",
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #333;">Password Reset Request</h2>
@@ -40,7 +40,7 @@ exports.sendPasswordResetEmail = async (email, resetUrl) => {
     await transporter.sendMail(mailOptions);
     return { success: true };
   } catch (error) {
-    console.error('Email send error:', error);
-    throw new Error('Error sending email');
+    console.error("Email send error:", error);
+    throw new Error("Error sending email");
   }
 };

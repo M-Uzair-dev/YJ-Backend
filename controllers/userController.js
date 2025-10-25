@@ -2,6 +2,8 @@ const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const Request = require("../models/Request");
 const Ebook = require("../models/Ebook");
+const fs = require("fs");
+const path = require("path");
 
 // Plan pricing structure (same as in requestController)
 const PLAN_PRICING = {
@@ -18,7 +20,7 @@ exports.getAllUsers = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const search = req.query.search || '';
+    const search = req.query.search || "";
 
     // Build query
     const query = { role: { $ne: "admin" } };
@@ -26,9 +28,9 @@ exports.getAllUsers = async (req, res) => {
     // Add search filter if search term provided
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { referral_code: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { referral_code: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -251,6 +253,9 @@ exports.getMe = async (req, res) => {
 
     // Calculate balance from transactions
     const calculatedBalance = allTransactions.reduce((sum, transaction) => {
+      if (transaction.type === "withdrawal") {
+        return sum - transaction.amount;
+      }
       return sum + transaction.amount;
     }, 0);
 
@@ -266,8 +271,11 @@ exports.getMe = async (req, res) => {
       .reduce((sum, t) => sum + t.amount, 0);
 
     const passiveIncome = allTransactions
-      .filter((t) => t.type === "passive")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t) => t.type === "passive" || t.type === "withdrawal")
+      .reduce(
+        (sum, t) => (t.type === "withdrawal" ? sum - t.amount : sum + t.amount),
+        0
+      );
 
     // Auto-correct income fields if mismatched
     if (
@@ -294,7 +302,9 @@ exports.getMe = async (req, res) => {
     }));
 
     // Get total transaction count
-    const totalTransactions = await Transaction.countDocuments({ user_id: user._id });
+    const totalTransactions = await Transaction.countDocuments({
+      user_id: user._id,
+    });
 
     // Get all users who were referred by this user
     const allReferrals = await User.find({ referral_of: user._id }).select(
@@ -304,55 +314,61 @@ exports.getMe = async (req, res) => {
     // Get latest 5 referrals by plan type
     const knowic_referrals = await User.find({
       referral_of: user._id,
-      plan: "knowic"
+      plan: "knowic",
     })
       .sort({ createdAt: -1 })
       .limit(5)
       .select("name createdAt")
-      .then(refs => refs.map((r) => ({
-        _id: r._id,
-        name: r.name,
-        joinDate: r.createdAt,
-      })));
+      .then((refs) =>
+        refs.map((r) => ({
+          _id: r._id,
+          name: r.name,
+          joinDate: r.createdAt,
+        }))
+      );
 
     const learnic_referrals = await User.find({
       referral_of: user._id,
-      plan: "learnic"
+      plan: "learnic",
     })
       .sort({ createdAt: -1 })
       .limit(5)
       .select("name createdAt")
-      .then(refs => refs.map((r) => ({
-        _id: r._id,
-        name: r.name,
-        joinDate: r.createdAt,
-      })));
+      .then((refs) =>
+        refs.map((r) => ({
+          _id: r._id,
+          name: r.name,
+          joinDate: r.createdAt,
+        }))
+      );
 
     const masteric_referrals = await User.find({
       referral_of: user._id,
-      plan: "masteric"
+      plan: "masteric",
     })
       .sort({ createdAt: -1 })
       .limit(5)
       .select("name createdAt")
-      .then(refs => refs.map((r) => ({
-        _id: r._id,
-        name: r.name,
-        joinDate: r.createdAt,
-      })));
+      .then((refs) =>
+        refs.map((r) => ({
+          _id: r._id,
+          name: r.name,
+          joinDate: r.createdAt,
+        }))
+      );
 
     // Get counts for each plan type
     const knowicCount = await User.countDocuments({
       referral_of: user._id,
-      plan: "knowic"
+      plan: "knowic",
     });
     const learnicCount = await User.countDocuments({
       referral_of: user._id,
-      plan: "learnic"
+      plan: "learnic",
     });
     const mastericCount = await User.countDocuments({
       referral_of: user._id,
-      plan: "masteric"
+      plan: "masteric",
     });
 
     // Check if user is pending and has no referrer
@@ -406,7 +422,6 @@ exports.getMe = async (req, res) => {
       status: "pending",
       referral_of: user._id,
     });
-
     // Prepare user data (excluding password)
     const userData = {
       _id: user._id,
@@ -421,6 +436,8 @@ exports.getMe = async (req, res) => {
       status: user.status,
       plan: user.plan,
       banned: user.banned,
+      profileImage: user.profileImage,
+      country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -588,7 +605,7 @@ exports.updateProfile = async (req, res) => {
   try {
     const { name } = req.body;
 
-    if (!name || name.trim() === '') {
+    if (!name || name.trim() === "") {
       return res.status(400).json({
         success: false,
         message: "Name is required",
@@ -658,7 +675,7 @@ exports.changePassword = async (req, res) => {
       });
     }
 
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findById(req.user.id).select("+password");
 
     if (!user) {
       return res.status(404).json({
@@ -700,27 +717,27 @@ exports.changePassword = async (req, res) => {
 // @access  Private
 exports.getIncomeStats = async (req, res) => {
   try {
-    const { period = 'all-time' } = req.query;
+    const { period = "all-time" } = req.query;
 
     // Calculate date range based on period
     let startDate;
     const now = new Date();
 
     switch (period) {
-      case 'today':
+      case "today":
         startDate = new Date(now.setHours(0, 0, 0, 0));
         break;
-      case 'this-week':
+      case "this-week":
         // Start of week (Sunday)
         const dayOfWeek = now.getDay();
         startDate = new Date(now);
         startDate.setDate(now.getDate() - dayOfWeek);
         startDate.setHours(0, 0, 0, 0);
         break;
-      case 'this-month':
+      case "this-month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
-      case 'all-time':
+      case "all-time":
       default:
         startDate = null; // No filter, get all transactions
         break;
@@ -737,6 +754,9 @@ exports.getIncomeStats = async (req, res) => {
 
     // Calculate balance from filtered transactions
     const balance = transactions.reduce((sum, transaction) => {
+      if (transaction.type === "withdrawal") {
+        return sum - transaction.amount;
+      }
       return sum + transaction.amount;
     }, 0);
 
@@ -747,8 +767,11 @@ exports.getIncomeStats = async (req, res) => {
 
     // Calculate passive income
     const passiveIncome = transactions
-      .filter((t) => t.type === "passive")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter((t) => t.type === "passive" || t.type === "withdrawal")
+      .reduce(
+        (sum, t) => (t.type === "withdrawal" ? sum - t.amount : sum + t.amount),
+        0
+      );
 
     res.status(200).json({
       success: true,
@@ -775,11 +798,11 @@ exports.getIncomeStats = async (req, res) => {
 exports.getAdminDashboardStats = async (req, res) => {
   try {
     // 1. Get all approved requests
-    const approvedRequests = await Request.find({ status: 'approved' });
+    const approvedRequests = await Request.find({ status: "approved" });
 
     // 2. Calculate total revenue (admin profit)
     let totalRevenue = 0;
-    approvedRequests.forEach(request => {
+    approvedRequests.forEach((request) => {
       const pricing = PLAN_PRICING[request.plan];
       if (!pricing) return;
 
@@ -788,34 +811,49 @@ exports.getAdminDashboardStats = async (req, res) => {
       if (request.user_id.toString() === request.sender_id.toString()) {
         totalRevenue += pricing.price;
       } else {
-        totalRevenue += (pricing.price - pricing.direct);
+        totalRevenue += pricing.price - pricing.direct;
       }
     });
 
     // 3. Count total users (excluding admins)
-    const totalUsers = await User.countDocuments({ role: { $ne: 'admin' } });
+    const totalUsers = await User.countDocuments({ role: { $ne: "admin" } });
 
     // 4. Count total ebooks
     const totalEbooks = await Ebook.countDocuments();
 
     // 5. Calculate plan distribution (percentage)
-    const knowicRequests = approvedRequests.filter(r => r.plan === 'knowic').length;
-    const learnicRequests = approvedRequests.filter(r => r.plan === 'learnic').length;
-    const mastericRequests = approvedRequests.filter(r => r.plan === 'masteric').length;
+    const knowicRequests = approvedRequests.filter(
+      (r) => r.plan === "knowic"
+    ).length;
+    const learnicRequests = approvedRequests.filter(
+      (r) => r.plan === "learnic"
+    ).length;
+    const mastericRequests = approvedRequests.filter(
+      (r) => r.plan === "masteric"
+    ).length;
     const totalRequests = approvedRequests.length;
 
     const planDistribution = {
-      knowic: totalRequests > 0 ? Math.round((knowicRequests / totalRequests) * 100) : 0,
-      learnic: totalRequests > 0 ? Math.round((learnicRequests / totalRequests) * 100) : 0,
-      masteric: totalRequests > 0 ? Math.round((mastericRequests / totalRequests) * 100) : 0,
+      knowic:
+        totalRequests > 0
+          ? Math.round((knowicRequests / totalRequests) * 100)
+          : 0,
+      learnic:
+        totalRequests > 0
+          ? Math.round((learnicRequests / totalRequests) * 100)
+          : 0,
+      masteric:
+        totalRequests > 0
+          ? Math.round((mastericRequests / totalRequests) * 100)
+          : 0,
     };
 
     // 6. Generate revenue over time (frequency distribution)
     // Group approved requests by date and calculate revenue
     const revenueOverTime = {};
-    approvedRequests.forEach(request => {
+    approvedRequests.forEach((request) => {
       const date = new Date(request.createdAt);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
 
       const pricing = PLAN_PRICING[request.plan];
       if (!pricing) return;
@@ -837,20 +875,20 @@ exports.getAdminDashboardStats = async (req, res) => {
     // Convert to array and sort by date
     const revenueData = Object.keys(revenueOverTime)
       .sort()
-      .map(date => ({
+      .map((date) => ({
         date,
-        revenue: revenueOverTime[date]
+        revenue: revenueOverTime[date],
       }));
 
     // 7. Generate users over time (frequency distribution)
-    const allUsers = await User.find({ role: { $ne: 'admin' } })
-      .select('createdAt')
+    const allUsers = await User.find({ role: { $ne: "admin" } })
+      .select("createdAt")
       .sort({ createdAt: 1 });
 
     const usersOverTime = {};
-    allUsers.forEach(user => {
+    allUsers.forEach((user) => {
       const date = new Date(user.createdAt);
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
 
       if (usersOverTime[dateKey]) {
         usersOverTime[dateKey]++;
@@ -864,11 +902,11 @@ exports.getAdminDashboardStats = async (req, res) => {
     let cumulativeUsers = 0;
     Object.keys(usersOverTime)
       .sort()
-      .forEach(date => {
+      .forEach((date) => {
         cumulativeUsers += usersOverTime[date];
         usersData.push({
           date,
-          users: cumulativeUsers
+          users: cumulativeUsers,
         });
       });
 
@@ -887,6 +925,67 @@ exports.getAdminDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error("Get admin dashboard stats error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Upload profile image
+// @route   PUT /api/me/profile-image
+// @access  Private
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload an image file",
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Delete old profile image if it exists
+    if (user.profileImage) {
+      const oldImagePath = path.join(__dirname, "..", user.profileImage);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Set new profile image path (relative to backend directory)
+    user.profileImage = `/uploads/profiles/${req.file.filename}`;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile image uploaded successfully",
+      profileImage: user.profileImage,
+    });
+  } catch (error) {
+    console.error("Upload profile image error:", error);
+
+    // Delete uploaded file if there was an error
+    if (req.file) {
+      const uploadedFilePath = path.join(
+        __dirname,
+        "../uploads/profiles",
+        req.file.filename
+      );
+      if (fs.existsSync(uploadedFilePath)) {
+        fs.unlinkSync(uploadedFilePath);
+      }
+    }
+
     res.status(500).json({
       success: false,
       message: "Server error",

@@ -12,9 +12,11 @@ const {
   updateProfile,
   changePassword,
   getIncomeStats,
-  getAdminDashboardStats
+  getAdminDashboardStats,
+  uploadProfileImage
 } = require('../controllers/userController');
 const { protect, authorize } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 // @route   GET /api/admin/dashboard-stats
 router.get('/admin/dashboard-stats', protect, authorize('admin'), getAdminDashboardStats);
@@ -42,6 +44,9 @@ router.put('/me/profile', protect, updateProfile);
 
 // @route   PUT /api/me/password
 router.put('/me/password', protect, changePassword);
+
+// @route   PUT /api/me/profile-image
+router.put('/me/profile-image', protect, upload.single('profileImage'), uploadProfileImage);
 
 // @route   GET /api/me/transactions/load-more
 router.get('/me/transactions/load-more', protect, loadMoreTransactions);

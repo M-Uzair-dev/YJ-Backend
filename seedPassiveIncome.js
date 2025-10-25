@@ -5,7 +5,7 @@ const Transaction = require("./models/Transaction");
 
 // ===== CONFIGURATION =====
 // Replace this with your user's MongoDB ObjectId
-const USER_ID = "68f3cf05ab9edced147a0325";
+const USER_ID = "68f9f24aff4eaa40878fb051";
 
 // Passive income transactions to create
 const PASSIVE_INCOME_AMOUNTS = [100, 150, 200, 250, 300]; // Total: $1000

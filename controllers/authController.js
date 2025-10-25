@@ -15,7 +15,7 @@ const generateToken = (id, role) => {
 // @access  Public
 exports.signup = async (req, res) => {
   try {
-    const { name, email, password, referral_code } = req.body;
+    const { name, email, password, referral_code, country } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -23,6 +23,14 @@ exports.signup = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Email already registered',
+      });
+    }
+
+    // Validate country field
+    if (!country) {
+      return res.status(400).json({
+        success: false,
+        message: 'Country is required',
       });
     }
 
@@ -45,6 +53,7 @@ exports.signup = async (req, res) => {
       email,
       password,
       referral_of: referrerId,
+      country,
     });
 
     // Generate token
@@ -64,6 +73,8 @@ exports.signup = async (req, res) => {
       status: user.status,
       plan: user.plan,
       banned: user.banned,
+      profileImage: user.profileImage,
+      country: user.country,
       createdAt: user.createdAt,
     };
 
@@ -133,6 +144,8 @@ exports.login = async (req, res) => {
       status: user.status,
       plan: user.plan,
       banned: user.banned,
+      profileImage: user.profileImage,
+      country: user.country,
       createdAt: user.createdAt,
     };
 
