@@ -62,14 +62,19 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    discounted: {
+      type: Boolean,
+      default: false,
+    },
     profileImage: {
       type: String,
       default: null,
     },
     country: {
       type: String,
-      required: [true, 'Country is required'],
+      required: false, // Optional for backward compatibility with existing users
       trim: true,
+      default: null,
     },
     resetPasswordToken: {
       type: String,

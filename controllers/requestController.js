@@ -22,7 +22,7 @@ const PLAN_HIERARCHY = {
 // @access  Private
 exports.createRequest = async (req, res) => {
   try {
-    const { user_id, plan } = req.body;
+    const { user_id, plan, discounted, discountAmount, originalPrice, finalPrice } = req.body;
     const sender_id = req.user._id;
 
     // Check if file was uploaded
@@ -101,13 +101,23 @@ exports.createRequest = async (req, res) => {
       });
     }
 
-    // Create request
-    const request = await Request.create({
+    // Create request with discount information if provided
+    const requestData = {
       user_id,
       sender_id,
       proof_image,
       plan,
-    });
+    };
+
+    // Add discount fields if this is a discounted request
+    if (discounted === 'true' || discounted === true) {
+      requestData.discounted = true;
+      requestData.discountAmount = parseFloat(discountAmount) || 0;
+      requestData.originalPrice = parseFloat(originalPrice) || 0;
+      requestData.finalPrice = parseFloat(finalPrice) || 0;
+    }
+
+    const request = await Request.create(requestData);
 
     const populatedRequest = await Request.findById(request._id)
       .populate("user_id", "name email")
@@ -159,9 +169,16 @@ exports.getAllRequests = async (req, res) => {
     const requestsWithPayment = requests.map((request) => {
       const planPricing = PLAN_PRICING[request.plan];
       const isSelfApproval = request.user_id._id.toString() === request.sender_id._id.toString();
-      const expectedPayment = isSelfApproval
-        ? planPricing.price
-        : planPricing.price - planPricing.direct;
+
+      // If request has discount info, use finalPrice; otherwise calculate normally
+      let expectedPayment;
+      if (request.discounted && request.finalPrice) {
+        expectedPayment = request.finalPrice;
+      } else {
+        expectedPayment = isSelfApproval
+          ? planPricing.price
+          : planPricing.price - planPricing.direct;
+      }
 
       return {
         ...request.toObject(),
@@ -226,6 +243,12 @@ exports.approveRequest = async (req, res) => {
     const user = await User.findById(request.user_id).session(session);
     user.status = "active";
     user.plan = request.plan;
+
+    // If this is a discounted request, mark user as discounted (no passive income)
+    if (request.discounted) {
+      user.discounted = true;
+    }
+
     await user.save({ session });
 
     // Get plan pricing
@@ -254,12 +277,13 @@ exports.approveRequest = async (req, res) => {
         { session }
       );
 
-      // Give passive income to sender's referrer (if exists)
+      // Give passive income to sender's referrer (if exists AND not discounted)
       if (sender.referral_of) {
         const grandReferrer = await User.findById(sender.referral_of).session(
           session
         );
-        if (grandReferrer) {
+        // Only give passive income if grandReferrer is NOT a discounted user
+        if (grandReferrer && !grandReferrer.discounted) {
           grandReferrer.passive_income += pricing.passive;
           grandReferrer.balance += pricing.passive;
           await grandReferrer.save({ session });

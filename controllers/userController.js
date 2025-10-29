@@ -4,6 +4,7 @@ const Request = require("../models/Request");
 const Ebook = require("../models/Ebook");
 const fs = require("fs");
 const path = require("path");
+const mongoose = require("mongoose");
 
 // Plan pricing structure (same as in requestController)
 const PLAN_PRICING = {
@@ -21,9 +22,15 @@ exports.getAllUsers = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
+    const status = req.query.status || ""; // Add status filter
 
     // Build query
     const query = { role: { $ne: "admin" } };
+
+    // Add status filter if provided
+    if (status) {
+      query.status = status;
+    }
 
     // Add search filter if search term provided
     if (search) {
@@ -113,25 +120,52 @@ exports.getUserById = async (req, res) => {
 // @route   PUT /api/users/:id
 // @access  Private (Admin only)
 exports.updateUser = async (req, res) => {
-  try {
-    const { name, email, password, banned } = req.body;
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    const user = await User.findById(req.params.id);
+  try {
+    const { name, email, password, banned, plan } = req.body;
+
+    const user = await User.findById(req.params.id).session(session);
 
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: "User not found",
       });
     }
 
+    const oldPlan = user.plan;
+
     // Update fields if provided
     if (name) user.name = name;
     if (email) user.email = email;
     if (password) user.password = password; // Will be hashed by pre-save hook
     if (banned !== undefined) user.banned = banned;
+    if (plan !== undefined) user.plan = plan || null; // Allow setting to null/empty
 
-    await user.save();
+    await user.save({ session });
+
+    // If plan was changed, update the corresponding approved request
+    if (plan !== undefined && oldPlan !== plan) {
+      // Find the approved request for this user
+      const approvedRequest = await Request.findOne({
+        user_id: user._id,
+        status: 'approved'
+      }).session(session);
+
+      if (approvedRequest) {
+        // Update the request's plan to match the new plan
+        approvedRequest.plan = plan || oldPlan;
+        await approvedRequest.save({ session });
+        console.log(`Updated request ${approvedRequest._id} plan from ${oldPlan} to ${plan}`);
+      }
+    }
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json({
       success: true,

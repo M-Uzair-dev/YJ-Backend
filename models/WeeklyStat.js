@@ -24,4 +24,7 @@ const weeklyStatSchema = new mongoose.Schema(
 // Compound unique index on userId and date
 weeklyStatSchema.index({ userId: 1, date: 1 }, { unique: true });
 
+// Index on date for efficient querying of most recent stats
+weeklyStatSchema.index({ date: -1 });
+
 module.exports = mongoose.model('WeeklyStat', weeklyStatSchema);

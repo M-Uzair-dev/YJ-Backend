@@ -24,4 +24,7 @@ const monthlyStatSchema = new mongoose.Schema(
 // Compound unique index on userId and date
 monthlyStatSchema.index({ userId: 1, date: 1 }, { unique: true });
 
+// Index on date for efficient querying of most recent stats
+monthlyStatSchema.index({ date: -1 });
+
 module.exports = mongoose.model('MonthlyStat', monthlyStatSchema);

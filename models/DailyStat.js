@@ -24,4 +24,7 @@ const dailyStatSchema = new mongoose.Schema(
 // Compound unique index on userId and date
 dailyStatSchema.index({ userId: 1, date: 1 }, { unique: true });
 
+// Index on date for efficient querying of most recent stats
+dailyStatSchema.index({ date: -1 });
+
 module.exports = mongoose.model('DailyStat', dailyStatSchema);

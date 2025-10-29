@@ -27,6 +27,22 @@ const requestSchema = new mongoose.Schema(
       enum: ['knowic', 'learnic', 'masteric'],
       required: [true, 'Plan is required'],
     },
+    discounted: {
+      type: Boolean,
+      default: false,
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
+    originalPrice: {
+      type: Number,
+      default: 0,
+    },
+    finalPrice: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
