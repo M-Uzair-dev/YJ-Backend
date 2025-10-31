@@ -16,6 +16,7 @@ const withdrawRoutes = require('./routes/withdrawRoutes');
 const ebookRoutes = require('./routes/ebookRoutes');
 const leaderboardRoutes = require('./routes/leaderboardRoutes');
 const discountRoutes = require('./routes/discountRoutes');
+const upgradeRequestRoutes = require('./routes/upgradeRequestRoutes');
 
 // Import cron jobs
 const { startLeaderboardJob } = require('./jobs/leaderboardJob');
@@ -83,6 +84,7 @@ app.use('/api', withdrawRoutes);
 app.use('/api/ebooks', ebookRoutes);
 app.use('/api', leaderboardRoutes);
 app.use('/api', discountRoutes);
+app.use('/api/upgrade-requests', upgradeRequestRoutes);
 
 // 404 handler
 app.use((req, res) => {

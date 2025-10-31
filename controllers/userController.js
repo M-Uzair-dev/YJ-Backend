@@ -153,14 +153,16 @@ exports.updateUser = async (req, res) => {
       // Find the approved request for this user
       const approvedRequest = await Request.findOne({
         user_id: user._id,
-        status: 'approved'
+        status: "approved",
       }).session(session);
 
       if (approvedRequest) {
         // Update the request's plan to match the new plan
         approvedRequest.plan = plan || oldPlan;
         await approvedRequest.save({ session });
-        console.log(`Updated request ${approvedRequest._id} plan from ${oldPlan} to ${plan}`);
+        console.log(
+          `Updated request ${approvedRequest._id} plan from ${oldPlan} to ${plan}`
+        );
       }
     }
 
@@ -474,6 +476,7 @@ exports.getMe = async (req, res) => {
       country: user.country,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      discounted: user.discounted,
     };
 
     res.status(200).json({

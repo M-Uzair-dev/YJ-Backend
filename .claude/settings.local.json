@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Noman/Desktop/coding files/referral app/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -277,13 +277,16 @@ exports.approveRequest = async (req, res) => {
         { session }
       );
 
-      // Give passive income to sender's referrer (if exists AND not discounted)
+      // Give passive income to sender's referrer (if exists AND purchaser is not discounted)
       if (sender.referral_of) {
         const grandReferrer = await User.findById(sender.referral_of).session(
           session
         );
-        // Only give passive income if grandReferrer is NOT a discounted user
-        if (grandReferrer && !grandReferrer.discounted) {
+        // Only give passive income if the PURCHASER (user) is NOT a discounted user
+        // Check if request.discounted is explicitly true (handles null/undefined as false)
+        const isPurchaserDiscounted = request.discounted === true;
+
+        if (grandReferrer && !isPurchaserDiscounted) {
           grandReferrer.passive_income += pricing.passive;
           grandReferrer.balance += pricing.passive;
           await grandReferrer.save({ session });

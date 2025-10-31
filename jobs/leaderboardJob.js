@@ -1,15 +1,15 @@
 /**
  * Leaderboard Cron Jobs
  *
- * Three separate jobs that recalculate leaderboard stats for COMPLETED periods:
- * - Daily: Runs at midnight every day (calculates YESTERDAY's stats)
- * - Weekly: Runs at midnight every Monday (calculates PREVIOUS WEEK Mon-Sun)
- * - Monthly: Runs at midnight on the 1st of each month (calculates PREVIOUS MONTH)
+ * All three leaderboards run at midnight (12:00 AM UTC) every day:
+ * - Daily: Calculates YESTERDAY's stats (completed 24 hours)
+ * - Weekly: Calculates LAST 7 DAYS rolling window (today minus 7 days)
+ * - Monthly: Calculates LAST 30 DAYS rolling window (today minus 30 days)
  *
  * Each job:
- * 1. Calculates the completed period date range
+ * 1. Calculates the rolling period date range
  * 2. Aggregates all transactions for each user within that period
- * 3. Removes old stats (keeps only the most recent period)
+ * 3. Removes old stats (keeps only the most recent calculation)
  * 4. Creates new stat entries with the calculated totals
  *
  * Calculation logic:
@@ -108,7 +108,7 @@ async function calculateDailyStats() {
 }
 
 /**
- * Calculate weekly stats - PREVIOUS WEEK (Monday to Sunday)
+ * Calculate weekly stats - LAST 7 DAYS (rolling window)
  */
 async function calculateWeeklyStats() {
   try {
@@ -116,31 +116,32 @@ async function calculateWeeklyStats() {
 
     const now = new Date();
 
-    // Calculate PREVIOUS WEEK's date range (Monday to Sunday)
-    // Today is Monday (day 1), so previous Monday is 7 days ago
-    const startOfLastWeek = new Date(Date.UTC(
+    // Calculate LAST 7 DAYS rolling window
+    // Start: 7 days ago at midnight
+    // End: Today at midnight (now)
+    const sevenDaysAgo = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate() - 7,
       0, 0, 0, 0
     ));
 
-    const endOfLastWeek = new Date(Date.UTC(
+    const today = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
       now.getUTCDate(),
       0, 0, 0, 0
     ));
 
-    console.log(`[Weekly Stats] Calculating for: ${startOfLastWeek.toISOString()} to ${endOfLastWeek.toISOString()}`);
+    console.log(`[Weekly Stats] Calculating for last 7 days: ${sevenDaysAgo.toISOString()} to ${today.toISOString()}`);
 
-    // Aggregate transactions from last week grouped by user
+    // Aggregate transactions from last 7 days grouped by user
     const weeklyTotals = await Transaction.aggregate([
       {
         $match: {
           createdAt: {
-            $gte: startOfLastWeek,
-            $lt: endOfLastWeek
+            $gte: sevenDaysAgo,
+            $lt: today
           },
           type: { $in: ['direct', 'passive', 'withdrawal'] }
         }
@@ -161,26 +162,26 @@ async function calculateWeeklyStats() {
       }
     ]);
 
-    // Clean up old weekly stats (keep only the most recent 4 weeks)
-    const fourWeeksAgo = new Date(startOfLastWeek);
-    fourWeeksAgo.setUTCDate(fourWeeksAgo.getUTCDate() - 28);
-    await WeeklyStat.deleteMany({ date: { $lt: fourWeeksAgo } });
+    // Clean up old weekly stats (keep only the most recent 7 days)
+    const cleanupDate = new Date(sevenDaysAgo);
+    cleanupDate.setUTCDate(cleanupDate.getUTCDate() - 7);
+    await WeeklyStat.deleteMany({ date: { $lt: cleanupDate } });
 
-    // Remove last week's old stats if they exist (for recalculation)
-    await WeeklyStat.deleteMany({ date: startOfLastWeek });
+    // Remove today's old stats if they exist (for recalculation)
+    await WeeklyStat.deleteMany({ date: today });
 
     // Insert new weekly stats
     if (weeklyTotals.length > 0) {
       const weeklyStats = weeklyTotals.map(item => ({
         userId: item._id,
         total: item.total,
-        date: startOfLastWeek
+        date: today // Store with today's date as the calculation date
       }));
 
       await WeeklyStat.insertMany(weeklyStats);
-      console.log(`[Weekly Stats] Calculated stats for ${weeklyStats.length} users for week starting ${startOfLastWeek.toISOString().split('T')[0]}`);
+      console.log(`[Weekly Stats] Calculated stats for ${weeklyStats.length} users for last 7 days (${today.toISOString().split('T')[0]})`);
     } else {
-      console.log('[Weekly Stats] No transactions found for last week');
+      console.log('[Weekly Stats] No transactions found for last 7 days');
     }
 
     console.log('[Weekly Stats] Calculation completed successfully');
@@ -190,7 +191,7 @@ async function calculateWeeklyStats() {
 }
 
 /**
- * Calculate monthly stats - PREVIOUS MONTH
+ * Calculate monthly stats - LAST 30 DAYS (rolling window)
  */
 async function calculateMonthlyStats() {
   try {
@@ -198,30 +199,32 @@ async function calculateMonthlyStats() {
 
     const now = new Date();
 
-    // Calculate PREVIOUS MONTH's date range
-    const startOfLastMonth = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth() - 1,
-      1,
-      0, 0, 0, 0
-    ));
-
-    const startOfCurrentMonth = new Date(Date.UTC(
+    // Calculate LAST 30 DAYS rolling window
+    // Start: 30 days ago at midnight
+    // End: Today at midnight (now)
+    const thirtyDaysAgo = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
-      1,
+      now.getUTCDate() - 30,
       0, 0, 0, 0
     ));
 
-    console.log(`[Monthly Stats] Calculating for: ${startOfLastMonth.toISOString()} to ${startOfCurrentMonth.toISOString()}`);
+    const today = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0, 0, 0, 0
+    ));
 
-    // Aggregate transactions from last month grouped by user
+    console.log(`[Monthly Stats] Calculating for last 30 days: ${thirtyDaysAgo.toISOString()} to ${today.toISOString()}`);
+
+    // Aggregate transactions from last 30 days grouped by user
     const monthlyTotals = await Transaction.aggregate([
       {
         $match: {
           createdAt: {
-            $gte: startOfLastMonth,
-            $lt: startOfCurrentMonth
+            $gte: thirtyDaysAgo,
+            $lt: today
           },
           type: { $in: ['direct', 'passive', 'withdrawal'] }
         }
@@ -242,30 +245,26 @@ async function calculateMonthlyStats() {
       }
     ]);
 
-    // Clean up old monthly stats (keep only the most recent 12 months)
-    const twelveMonthsAgo = new Date(Date.UTC(
-      startOfLastMonth.getUTCFullYear(),
-      startOfLastMonth.getUTCMonth() - 12,
-      1,
-      0, 0, 0, 0
-    ));
-    await MonthlyStat.deleteMany({ date: { $lt: twelveMonthsAgo } });
+    // Clean up old monthly stats (keep only the most recent 30 days)
+    const cleanupDate = new Date(thirtyDaysAgo);
+    cleanupDate.setUTCDate(cleanupDate.getUTCDate() - 30);
+    await MonthlyStat.deleteMany({ date: { $lt: cleanupDate } });
 
-    // Remove last month's old stats if they exist (for recalculation)
-    await MonthlyStat.deleteMany({ date: startOfLastMonth });
+    // Remove today's old stats if they exist (for recalculation)
+    await MonthlyStat.deleteMany({ date: today });
 
     // Insert new monthly stats
     if (monthlyTotals.length > 0) {
       const monthlyStats = monthlyTotals.map(item => ({
         userId: item._id,
         total: item.total,
-        date: startOfLastMonth
+        date: today // Store with today's date as the calculation date
       }));
 
       await MonthlyStat.insertMany(monthlyStats);
-      console.log(`[Monthly Stats] Calculated stats for ${monthlyStats.length} users for ${startOfLastMonth.toISOString().split('T')[0]}`);
+      console.log(`[Monthly Stats] Calculated stats for ${monthlyStats.length} users for last 30 days (${today.toISOString().split('T')[0]})`);
     } else {
-      console.log('[Monthly Stats] No transactions found for last month');
+      console.log('[Monthly Stats] No transactions found for last 30 days');
     }
 
     console.log('[Monthly Stats] Calculation completed successfully');
@@ -278,31 +277,23 @@ async function calculateMonthlyStats() {
  * Initialize and start all leaderboard cron jobs
  */
 function startLeaderboardJob() {
-  // Daily job: Runs at midnight every day (0 0 * * *)
-  // Calculates yesterday's stats
-  const dailyJob = cron.schedule('0 0 * * *', calculateDailyStats, {
-    scheduled: true,
-    timezone: 'UTC',
-  });
-
-  // Weekly job: Runs at midnight every Monday (0 0 * * 1)
-  // Calculates previous week's stats (Mon-Sun)
-  const weeklyJob = cron.schedule('0 0 * * 1', calculateWeeklyStats, {
-    scheduled: true,
-    timezone: 'UTC',
-  });
-
-  // Monthly job: Runs at midnight on the 1st of each month (0 0 1 * *)
-  // Calculates previous month's stats
-  const monthlyJob = cron.schedule('0 0 1 * *', calculateMonthlyStats, {
+  // All jobs run at midnight every day (0 0 * * *)
+  // Calculates rolling windows for all three leaderboards
+  const dailyJob = cron.schedule('0 0 * * *', () => {
+    console.log('[Leaderboard Jobs] Running all calculations at midnight...');
+    calculateDailyStats().catch(err => console.error('[Daily Stats] Error:', err));
+    calculateWeeklyStats().catch(err => console.error('[Weekly Stats] Error:', err));
+    calculateMonthlyStats().catch(err => console.error('[Monthly Stats] Error:', err));
+  }, {
     scheduled: true,
     timezone: 'UTC',
   });
 
   console.log('[Leaderboard Jobs] Scheduled:');
-  console.log('  - Daily: Midnight every day (calculates yesterday)');
-  console.log('  - Weekly: Midnight every Monday (calculates previous week Mon-Sun)');
-  console.log('  - Monthly: Midnight on 1st of each month (calculates previous month)');
+  console.log('  - All leaderboards: Midnight every day (12:00 AM UTC)');
+  console.log('  - Daily: Calculates yesterday');
+  console.log('  - Weekly: Calculates last 7 days (rolling window)');
+  console.log('  - Monthly: Calculates last 30 days (rolling window)');
 
   // Run all calculations immediately on startup to ensure fresh data
   console.log('[Leaderboard Jobs] Running initial calculations on startup...');
@@ -314,7 +305,7 @@ function startLeaderboardJob() {
     calculateMonthlyStats().catch(err => console.error('[Monthly Stats] Initial calculation error:', err));
   }, 5000); // Wait 5 seconds after startup
 
-  return { dailyJob, weeklyJob, monthlyJob };
+  return { dailyJob };
 }
 
 module.exports = {
