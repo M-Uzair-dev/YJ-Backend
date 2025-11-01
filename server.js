@@ -37,25 +37,40 @@ app.use(
 ); // Security headers
 
 // CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://www.yjnetwork.net',
+  'https://yjnetwork.net',
+  'https://referralapp.uzairmanan.com'
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    // In production, you can specify allowed origins
-    // const allowedOrigins = ['https://yourdomain.com', 'https://www.yourdomain.com'];
-    // if (allowedOrigins.indexOf(origin) === -1) {
-    //   return callback(new Error('Not allowed by CORS'), false);
-    // }
-
-    // For now, allow all origins (useful for development and flexible production)
-    callback(null, true);
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'), false);
+    }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions)); // CORS with proper configuration
+
+// Explicitly handle OPTIONS requests for preflight
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '100mb' })); // Body parser with increased limit
 app.use(express.urlencoded({ extended: true, limit: '100mb' })); // URL encoded data with increased limit
 app.use(morgan("dev")); // Logging
