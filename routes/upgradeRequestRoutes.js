@@ -8,7 +8,6 @@ const upload = require('../utils/upload');
 router.post(
   '/',
   protect,
-  upload.single('proof_image'),
   upgradeRequestController.createUpgradeRequest
 );
 
@@ -16,6 +15,28 @@ router.get(
   '/my-request',
   protect,
   upgradeRequestController.getUserUpgradeRequest
+);
+
+// Get upgrade requests where user is the new referrer
+router.get(
+  '/referrer-requests',
+  protect,
+  upgradeRequestController.getReferrerUpgradeRequests
+);
+
+// Referrer approves with proof upload
+router.post(
+  '/referrer-approve/:id',
+  protect,
+  upload.single('proof_image'),
+  upgradeRequestController.referrerApproveRequest
+);
+
+// Referrer rejects
+router.post(
+  '/referrer-reject/:id',
+  protect,
+  upgradeRequestController.referrerRejectRequest
 );
 
 // Admin routes

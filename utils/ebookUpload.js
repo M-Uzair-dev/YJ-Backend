@@ -41,9 +41,7 @@ const fileFilter = (req, file, cb) => {
 // Configure multer
 const ebookUpload = multer({
   storage: storage,
-  limits: {
-    fileSize: parseInt(process.env.MAX_EBOOK_SIZE) || 50 * 1024 * 1024, // 50MB default
-  },
+  // No size limits - admins only
   fileFilter: fileFilter
 });
 

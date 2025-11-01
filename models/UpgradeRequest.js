@@ -16,14 +16,23 @@ const upgradeRequestSchema = new mongoose.Schema({
     enum: ['knowic', 'learnic', 'masteric'],
     required: true,
   },
-  proof_image: {
+  referral_code: {
     type: String,
     required: true,
   },
+  new_referrer_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  proof_image: {
+    type: String,
+    required: false,
+  },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending',
+    enum: ['created', 'user_approved', 'approved', 'rejected'],
+    default: 'created',
   },
 }, {
   timestamps: true,
