@@ -6,15 +6,43 @@ const path = require("path");
 // @route   POST /api/ebooks
 // @access  Admin only
 exports.uploadEbook = async (req, res) => {
+  const startTime = Date.now();
+  console.log("\n========== EBOOK UPLOAD STARTED ==========");
+  console.log(`[${new Date().toISOString()}] Upload initiated by admin: ${req.user?.email || 'Unknown'}`);
+
   try {
     const { title, description, accentColor, plan } = req.body;
 
+    console.log("Request body:", {
+      title,
+      description: description?.substring(0, 50) + "...",
+      accentColor,
+      plan,
+    });
+
+    // Log file information
+    if (req.file) {
+      console.log("File details:", {
+        originalName: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+        path: req.file.path,
+      });
+    } else {
+      console.error("ERROR: No file uploaded in request");
+    }
+
     // Validate required fields
     if (!title || !description || !plan) {
+      console.error("ERROR: Missing required fields", { title: !!title, description: !!description, plan: !!plan });
+
       // Delete uploaded file if validation fails
       if (req.file) {
+        console.log("Cleaning up uploaded file due to validation error...");
         fs.unlinkSync(req.file.path);
       }
+
       return res.status(400).json({
         success: false,
         message: "Please provide title, description, and plan",
@@ -23,9 +51,13 @@ exports.uploadEbook = async (req, res) => {
 
     // Validate plan
     if (!["knowic", "learnic", "masteric"].includes(plan)) {
+      console.error("ERROR: Invalid plan value:", plan);
+
       if (req.file) {
+        console.log("Cleaning up uploaded file due to invalid plan...");
         fs.unlinkSync(req.file.path);
       }
+
       return res.status(400).json({
         success: false,
         message: "Invalid plan. Must be knowic, learnic, or masteric",
@@ -34,11 +66,14 @@ exports.uploadEbook = async (req, res) => {
 
     // Check if file was uploaded
     if (!req.file) {
+      console.error("ERROR: No PDF file uploaded");
       return res.status(400).json({
         success: false,
         message: "Please upload a PDF file",
       });
     }
+
+    console.log("Creating ebook document in database...");
 
     // Create ebook document
     const ebook = await Ebook.create({
@@ -49,21 +84,45 @@ exports.uploadEbook = async (req, res) => {
       pdfFile: req.file.filename,
     });
 
+    const duration = Date.now() - startTime;
+    console.log(`SUCCESS: Ebook created successfully (ID: ${ebook._id})`);
+    console.log(`Upload duration: ${(duration / 1000).toFixed(2)} seconds`);
+    console.log("========== EBOOK UPLOAD COMPLETED ==========\n");
+
     res.status(201).json({
       success: true,
       message: "Ebook uploaded successfully",
       data: ebook,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+
     // Delete uploaded file if database operation fails
     if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+      console.log("Cleaning up uploaded file due to error...");
+      try {
+        fs.unlinkSync(req.file.path);
+        console.log("File cleanup successful");
+      } catch (cleanupError) {
+        console.error("ERROR: File cleanup failed:", cleanupError.message);
+      }
     }
 
-    console.error("Upload ebook error:", error);
+    console.error("========== EBOOK UPLOAD FAILED ==========");
+    console.error("Error type:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error(`Failed after: ${(duration / 1000).toFixed(2)} seconds`);
+    console.error("==========================================\n");
+
     res.status(500).json({
       success: false,
       message: error.message || "Error uploading ebook",
+      error: process.env.NODE_ENV === "development" ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      } : undefined,
     });
   }
 };

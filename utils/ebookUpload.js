@@ -27,22 +27,73 @@ const storage = multer.diskStorage({
 
 // File filter - only accept PDFs
 const fileFilter = (req, file, cb) => {
+  console.log(`[Multer] Processing file: ${file.originalname} (${file.mimetype})`);
+
   const allowedTypes = /pdf/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = file.mimetype === 'application/pdf';
 
   if (mimetype && extname) {
+    console.log(`[Multer] File validation passed: ${file.originalname}`);
     return cb(null, true);
   } else {
+    console.error(`[Multer] File validation failed: ${file.originalname} (mimetype: ${file.mimetype})`);
     cb(new Error('Only PDF files are allowed'));
   }
 };
 
-// Configure multer
+// Configure multer with explicit limits
 const ebookUpload = multer({
   storage: storage,
-  // No size limits - admins only
-  fileFilter: fileFilter
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB max file size (generous limit for production)
+    files: 1, // Only one file at a time
+  },
+  fileFilter: fileFilter,
 });
 
+// Add error handling middleware
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    console.error('[Multer Error]:', err.message);
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File size too large. Maximum allowed size is 100MB.',
+      });
+    }
+
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({
+        success: false,
+        message: 'Too many files. Only one file can be uploaded at a time.',
+      });
+    }
+
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        success: false,
+        message: 'Unexpected file field. Please upload using the "pdfFile" field.',
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'File upload error',
+    });
+  }
+
+  if (err) {
+    console.error('[Upload Error]:', err.message);
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'File upload failed',
+    });
+  }
+
+  next();
+};
+
 module.exports = ebookUpload;
+module.exports.handleMulterError = handleMulterError;

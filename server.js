@@ -25,6 +25,9 @@ const { startResetJobs } = require("./jobs/resetJobs");
 // Initialize express app
 const app = express();
 
+// Set server timeout for large file uploads (10 minutes)
+app.timeout = 600000; // 10 minutes in milliseconds
+
 // Middleware
 app.use(
   helmet({
@@ -32,9 +35,29 @@ app.use(
     contentSecurityPolicy: false, // Disable CSP to allow images to load
   })
 ); // Security headers
-app.use(cors({ origin: "*" })); // CORS - Allow all origins
-app.use(express.json({ limit: '500mb' })); // Body parser with increased limit
-app.use(express.urlencoded({ extended: true, limit: '500mb' })); // URL encoded data with increased limit
+
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // In production, you can specify allowed origins
+    // const allowedOrigins = ['https://yourdomain.com', 'https://www.yourdomain.com'];
+    // if (allowedOrigins.indexOf(origin) === -1) {
+    //   return callback(new Error('Not allowed by CORS'), false);
+    // }
+
+    // For now, allow all origins (useful for development and flexible production)
+    callback(null, true);
+  },
+  credentials: true,
+  maxAge: 86400, // 24 hours
+};
+
+app.use(cors(corsOptions)); // CORS with proper configuration
+app.use(express.json({ limit: '100mb' })); // Body parser with increased limit
+app.use(express.urlencoded({ extended: true, limit: '100mb' })); // URL encoded data with increased limit
 app.use(morgan("dev")); // Logging
 
 // Serve static files from proofs directory
@@ -109,7 +132,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`=� Server running on port ${PORT}`);
   console.log(`=� Environment: ${process.env.NODE_ENV || "development"}`);
 
@@ -118,6 +141,13 @@ app.listen(PORT, () => {
   startResetJobs();
   console.log(" Leaderboard cron jobs started successfully");
 });
+
+// Set timeout on the server instance for large file uploads (10 minutes)
+server.timeout = 600000; // 10 minutes
+server.keepAliveTimeout = 610000; // Slightly higher than timeout
+server.headersTimeout = 620000; // Slightly higher than keepAliveTimeout
+
+console.log(" Server timeout set to 10 minutes for large file uploads");
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
