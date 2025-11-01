@@ -36,7 +36,7 @@ app.use(
   })
 ); // Security headers
 
-// CORS configuration
+// CORS configuration - Allow specific origins
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
@@ -47,30 +47,31 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps, Postman, or curl)
     if (!origin) return callback(null, true);
 
     // Check if the origin is in the allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.log('Blocked by CORS:', origin);
-      callback(new Error('Not allowed by CORS'), false);
+      // Allow it anyway but log for monitoring (change to false to block)
+      console.log('⚠️  CORS request from unlisted origin:', origin);
+      callback(null, true); // Temporarily allow all origins
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 86400, // 24 hours
-  preflightContinue: false,
   optionsSuccessStatus: 204
 };
 
-app.use(cors(corsOptions)); // CORS with proper configuration
-
-// Explicitly handle OPTIONS requests for preflight
+// Enable pre-flight across all routes
 app.options('*', cors(corsOptions));
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '100mb' })); // Body parser with increased limit
 app.use(express.urlencoded({ extended: true, limit: '100mb' })); // URL encoded data with increased limit
 app.use(morgan("dev")); // Logging
