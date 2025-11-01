@@ -67,10 +67,7 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// Enable pre-flight across all routes
-app.options('*', cors(corsOptions));
-
-// Apply CORS middleware
+// Apply CORS middleware (handles OPTIONS automatically)
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100mb' })); // Body parser with increased limit
 app.use(express.urlencoded({ extended: true, limit: '100mb' })); // URL encoded data with increased limit

@@ -1,0 +1,22 @@
+root@srv1086303:~/backend# sudo nginx -t
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@srv1086303:~/backend# sudo systemctl reload nginx
+root@srv1086303:~/backend# sudo systemctl status nginx
+● nginx.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; preset: enabled)
+     Active: active (running) since Sun 2025-10-26 12:04:54 UTC; 6 days ago
+       Docs: man:nginx(8)
+    Process: 39457 ExecReload=/usr/sbin/nginx -g daemon on; master_process on; -s reload (code=exited, status=0/SUCC>   Main PID: 9204 (nginx)
+      Tasks: 3 (limit: 9483)
+     Memory: 3.4M (peak: 6.6M)
+        CPU: 4.005s
+     CGroup: /system.slice/nginx.service
+             ├─ 9204 "nginx: master process /usr/sbin/nginx -g daemon on; master_process on;"
+             ├─39459 "nginx: worker process"
+             └─39460 "nginx: worker process"
+
+Oct 26 12:14:56 srv1086303 systemd[1]: Reloaded nginx.service - A high performance web server and a reverse proxy se>Oct 26 12:17:45 srv1086303 systemd[1]: Reloading nginx.service - A high performance web server and a reverse proxy s>Oct 26 12:17:45 srv1086303 nginx[9970]: 2025/10/26 12:17:45 [notice] 9970#9970: signal process started
+Oct 26 12:17:45 srv1086303 systemd[1]: Reloaded nginx.service - A high performance web server and a reverse proxy se>Oct 26 12:27:47 srv1086303 systemd[1]: Reloading nginx.service - A high performance web server and a reverse proxy s>Oct 26 12:27:47 srv1086303 nginx[10078]: 2025/10/26 12:27:47 [notice] 10078#10078: signal process started
+Oct 26 12:27:47 srv1086303 systemd[1]: Reloaded nginx.service - A high performance web server and a reverse proxy se>Nov 01 15:22:39 srv1086303 systemd[1]: Reloading nginx.service - A high performance web server and a reverse proxy s>Nov 01 15:22:39 srv1086303 nginx[39457]: 2025/11/01 15:22:39 [notice] 39457#39457: signal process started
+Nov 01 15:22:39 srv1086303 systemd[1]: Reloaded nginx.service - A high performance web server and a reverse proxy se>lines 1-24/24 (END)
