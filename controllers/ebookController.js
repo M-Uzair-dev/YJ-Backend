@@ -127,7 +127,7 @@ exports.uploadEbook = async (req, res) => {
   }
 };
 
-// @desc    Get all ebooks (grouped by plan for admin, filtered by user's plan for users)
+// @desc    Get all ebooks (grouped by plan for admin, hierarchical access for users)
 // @route   GET /api/ebooks
 // @access  Private
 exports.getEbooks = async (req, res) => {
@@ -152,7 +152,7 @@ exports.getEbooks = async (req, res) => {
         },
       });
     } else {
-      // Regular users get only their plan's ebooks
+      // Regular users get hierarchical access based on their plan
       if (!userPlan) {
         return res.status(200).json({
           success: true,
@@ -160,7 +160,20 @@ exports.getEbooks = async (req, res) => {
         });
       }
 
-      ebooks = await Ebook.find({ plan: userPlan }).sort({ createdAt: -1 });
+      // Define hierarchical access
+      // Knowic: only knowic ebooks
+      // Learnic: knowic + learnic ebooks
+      // Masteric: knowic + learnic + masteric ebooks (all)
+      let allowedPlans = [];
+      if (userPlan === "knowic") {
+        allowedPlans = ["knowic"];
+      } else if (userPlan === "learnic") {
+        allowedPlans = ["knowic", "learnic"];
+      } else if (userPlan === "masteric") {
+        allowedPlans = ["knowic", "learnic", "masteric"];
+      }
+
+      ebooks = await Ebook.find({ plan: { $in: allowedPlans } }).sort({ createdAt: -1 });
 
       return res.status(200).json({
         success: true,

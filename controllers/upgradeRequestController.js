@@ -140,6 +140,7 @@ exports.referrerApproveRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const { discounted, discountAmount, originalPrice, finalPrice } = req.body;
 
     const upgradeRequest = await UpgradeRequest.findById(id);
     if (!upgradeRequest) {
@@ -166,6 +167,15 @@ exports.referrerApproveRequest = async (req, res) => {
     // Update request
     upgradeRequest.proof_image = proof_image;
     upgradeRequest.status = 'user_approved';
+
+    // Add discount fields if this is a discounted upgrade
+    if (discounted === 'true' || discounted === true) {
+      upgradeRequest.discounted = true;
+      upgradeRequest.discountAmount = parseFloat(discountAmount) || 0;
+      upgradeRequest.originalPrice = parseFloat(originalPrice) || 0;
+      upgradeRequest.finalPrice = parseFloat(finalPrice) || 0;
+    }
+
     await upgradeRequest.save();
 
     res.status(200).json({
@@ -274,10 +284,13 @@ exports.approveUpgradeRequest = async (req, res) => {
       amount: pricing.direct,
     });
 
-    // Give passive commission to new referrer's referrer (if exists)
+    // Give passive commission to new referrer's referrer (if exists AND upgrade is not discounted)
     if (newReferrer.referral_of) {
       const grandReferrer = await User.findById(newReferrer.referral_of);
-      if (grandReferrer) {
+      // Only give passive income if the upgrade is NOT discounted
+      const isUpgradeDiscounted = upgradeRequest.discounted === true;
+
+      if (grandReferrer && !isUpgradeDiscounted) {
         grandReferrer.passive_income += pricing.passive;
         grandReferrer.balance += pricing.passive;
         await grandReferrer.save();

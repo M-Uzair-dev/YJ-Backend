@@ -34,6 +34,22 @@ const upgradeRequestSchema = new mongoose.Schema({
     enum: ['created', 'user_approved', 'approved', 'rejected'],
     default: 'created',
   },
+  discounted: {
+    type: Boolean,
+    default: false,
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+  },
+  originalPrice: {
+    type: Number,
+    default: 0,
+  },
+  finalPrice: {
+    type: Number,
+    default: 0,
+  },
 }, {
   timestamps: true,
 });
