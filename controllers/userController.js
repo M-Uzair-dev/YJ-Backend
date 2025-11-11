@@ -1030,3 +1030,60 @@ exports.uploadProfileImage = async (req, res) => {
     });
   }
 };
+
+// @desc    Delete pending user (rejects referral)
+// @route   DELETE /api/me/pending-users/:id
+// @access  Private
+exports.deletePendingUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const referrerId = req.user._id;
+
+    // Find the pending user
+    const pendingUser = await User.findById(userId);
+
+    if (!pendingUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Verify the user is pending
+    if (pendingUser.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "User is not in pending status",
+      });
+    }
+
+    // Verify the pending user was referred by the current user
+    if (
+      !pendingUser.referral_of ||
+      pendingUser.referral_of.toString() !== referrerId.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only reject users you referred",
+      });
+    }
+
+    // Delete any pending requests associated with this user
+    await Request.deleteMany({ user_id: userId });
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Pending user deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete pending user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};

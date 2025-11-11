@@ -9,6 +9,7 @@ const {
   loadMoreTransactions,
   loadMoreReferrals,
   loadMorePendingUsers,
+  deletePendingUser,
   updateProfile,
   changePassword,
   getIncomeStats,
@@ -56,5 +57,8 @@ router.get('/me/referrals/load-more', protect, loadMoreReferrals);
 
 // @route   GET /api/me/pending-users/load-more
 router.get('/me/pending-users/load-more', protect, loadMorePendingUsers);
+
+// @route   DELETE /api/me/pending-users/:id
+router.delete('/me/pending-users/:id', protect, deletePendingUser);
 
 module.exports = router;
