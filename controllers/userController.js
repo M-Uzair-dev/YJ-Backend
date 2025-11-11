@@ -1071,12 +1071,13 @@ exports.deletePendingUser = async (req, res) => {
     // Delete any pending requests associated with this user
     await Request.deleteMany({ user_id: userId });
 
-    // Delete the user
-    await User.findByIdAndDelete(userId);
+    // Remove the referral relationship by setting referral_of to null
+    pendingUser.referral_of = null;
+    await pendingUser.save();
 
     res.status(200).json({
       success: true,
-      message: "Pending user deleted successfully",
+      message: "Referral relationship removed successfully",
     });
   } catch (error) {
     console.error("Delete pending user error:", error);
