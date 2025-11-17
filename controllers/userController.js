@@ -852,8 +852,8 @@ exports.getAdminDashboardStats = async (req, res) => {
       }
     });
 
-    // 3. Count total users (excluding admins)
-    const totalUsers = await User.countDocuments({ role: { $ne: "admin" } });
+    // 3. Count total approved users (excluding admins, only active status)
+    const totalUsers = await User.countDocuments({ role: { $ne: "admin" }, status: "active" });
 
     // 4. Count total ebooks
     const totalEbooks = await Ebook.countDocuments();
@@ -917,8 +917,8 @@ exports.getAdminDashboardStats = async (req, res) => {
         revenue: revenueOverTime[date],
       }));
 
-    // 7. Generate users over time (frequency distribution)
-    const allUsers = await User.find({ role: { $ne: "admin" } })
+    // 7. Generate users over time (frequency distribution) - only approved users
+    const allUsers = await User.find({ role: { $ne: "admin" }, status: "active" })
       .select("createdAt")
       .sort({ createdAt: 1 });
 
