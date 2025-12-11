@@ -762,14 +762,16 @@ exports.getIncomeStats = async (req, res) => {
 
     switch (period) {
       case "today":
-        startDate = new Date(now.setHours(0, 0, 0, 0));
+        // Create a new date object for today at midnight (avoid mutating 'now')
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
         break;
       case "this-week":
         // Start of week (Sunday)
         const dayOfWeek = now.getDay();
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - dayOfWeek);
-        startDate.setHours(0, 0, 0, 0);
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - dayOfWeek);
+        weekStart.setHours(0, 0, 0, 0);
+        startDate = weekStart;
         break;
       case "this-month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -802,7 +804,7 @@ exports.getIncomeStats = async (req, res) => {
       .filter((t) => t.type === "direct")
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // Calculate passive income
+    // Calculate passive income (includes withdrawals to show net amount)
     const passiveIncome = transactions
       .filter((t) => t.type === "passive" || t.type === "withdrawal")
       .reduce(
