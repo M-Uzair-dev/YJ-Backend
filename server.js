@@ -17,6 +17,7 @@ const ebookRoutes = require("./routes/ebookRoutes");
 const leaderboardRoutes = require("./routes/leaderboardRoutes");
 const discountRoutes = require("./routes/discountRoutes");
 const upgradeRequestRoutes = require("./routes/upgradeRequestRoutes");
+const highlightRoutes = require("./routes/highlightRoutes");
 
 // Import cron jobs
 const { startLeaderboardJob } = require("./jobs/leaderboardJob");
@@ -82,6 +83,9 @@ app.use("/ebooks", express.static(path.join(__dirname, "ebooks")));
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Serve static files from stories directory
+app.use("/stories", express.static(path.join(__dirname, "stories")));
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
@@ -124,6 +128,7 @@ app.use("/api/ebooks", ebookRoutes);
 app.use("/api", leaderboardRoutes);
 app.use("/api", discountRoutes);
 app.use("/api/upgrade-requests", upgradeRequestRoutes);
+app.use("/api/highlights", highlightRoutes);
 
 // 404 handler
 app.use((req, res) => {

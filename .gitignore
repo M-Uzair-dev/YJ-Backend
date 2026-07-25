@@ -1,2 +1,26 @@
+# Dependencies
 node_modules
+
+# Secrets - NEVER commit
 .env
+.env.*
+
+# User-uploaded content & product files (PII / proprietary) - keep folders, ignore contents
+proofs/*
+!proofs/.gitkeep
+uploads/*
+!uploads/.gitkeep
+ebooks/*
+!ebooks/.gitkeep
+stories/*
+!stories/.gitkeep
+
+# Local tooling
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Update bundle produced during deploy
+yj-update.tar.gz

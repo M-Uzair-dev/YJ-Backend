@@ -46,26 +46,27 @@ exports.updateDiscounts = async (req, res) => {
       });
     }
 
-    // Validate maximum discount limits (passive income amount)
-    // Knowic: max $7, Learnic: max $18, Masteric: max $44
-    if (knowicDiscount > 7) {
+    // Validate maximum discount limits - discount cannot exceed the plan price
+    const PLAN_PRICES = { knowic: 24, learnic: 59, masteric: 130 };
+
+    if (knowicDiscount > PLAN_PRICES.knowic) {
       return res.status(400).json({
         success: false,
-        message: 'Knowic discount cannot exceed $7 (passive income amount)',
+        message: `Knowic discount cannot exceed the plan price ($${PLAN_PRICES.knowic})`,
       });
     }
 
-    if (learnicDiscount > 18) {
+    if (learnicDiscount > PLAN_PRICES.learnic) {
       return res.status(400).json({
         success: false,
-        message: 'Learnic discount cannot exceed $18 (passive income amount)',
+        message: `Learnic discount cannot exceed the plan price ($${PLAN_PRICES.learnic})`,
       });
     }
 
-    if (mastericDiscount > 44) {
+    if (mastericDiscount > PLAN_PRICES.masteric) {
       return res.status(400).json({
         success: false,
-        message: 'Masteric discount cannot exceed $44 (passive income amount)',
+        message: `Masteric discount cannot exceed the plan price ($${PLAN_PRICES.masteric})`,
       });
     }
 

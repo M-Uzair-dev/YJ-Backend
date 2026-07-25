@@ -5,6 +5,7 @@ const Ebook = require("../models/Ebook");
 const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
+const { getPeriodStart } = require("../utils/dateRange");
 
 // Plan pricing structure (same as in requestController)
 const PLAN_PRICING = {
@@ -756,31 +757,11 @@ exports.getIncomeStats = async (req, res) => {
   try {
     const { period = "all-time" } = req.query;
 
-    // Calculate date range based on period
-    let startDate;
-    const now = new Date();
-
-    switch (period) {
-      case "today":
-        // Create a new date object for today at midnight (avoid mutating 'now')
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        break;
-      case "this-week":
-        // Start of week (Sunday)
-        const dayOfWeek = now.getDay();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - dayOfWeek);
-        weekStart.setHours(0, 0, 0, 0);
-        startDate = weekStart;
-        break;
-      case "this-month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "all-time":
-      default:
-        startDate = null; // No filter, get all transactions
-        break;
-    }
+    // Calculate date range based on period, using the business timezone so the
+    // day/week/month boundary matches local time (not the server's UTC clock).
+    // Without this, transactions between local midnight and 05:00 PKT were
+    // attributed to the previous day.
+    const startDate = getPeriodStart(period);
 
     // Build query
     const query = { user_id: req.user._id };
