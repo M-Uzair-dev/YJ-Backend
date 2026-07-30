@@ -38,6 +38,12 @@ const upgradeRequestSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Percentage applied at purchase time. Recorded alongside the resolved
+  // dollar amount so historical requests stay readable if rates change later.
+  discountPercent: {
+    type: Number,
+    default: 0,
+  },
   discountAmount: {
     type: Number,
     default: 0,

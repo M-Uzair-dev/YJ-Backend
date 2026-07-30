@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Highlight = require('../models/Highlight');
 const Story = require('../models/Story');
 const fs = require('fs');
@@ -13,6 +14,17 @@ const deleteStoryFile = (filename) => {
   } catch (error) {
     console.error('Story file cleanup failed:', error.message);
   }
+};
+
+// Helper - a readable filename for downloads, since stories are stored on disk
+// under generated names like "story-1719849302145-a3f9c1.mp4"
+const buildDownloadName = (story, storedName) => {
+  const ext = path.extname(storedName);
+  const slug = (story.highlight_id?.name || 'story')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `yj-network-${slug || 'story'}-${story._id.toString().slice(-6)}${ext}`;
 };
 
 // @desc    Get all highlights with their stories
@@ -205,6 +217,61 @@ exports.uploadStory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to upload story',
+    });
+  }
+};
+
+// @desc    Download a story's media file
+// @route   GET /api/highlights/stories/:storyId/download
+// @access  Public (stories are shown publicly on the landing page)
+exports.downloadStory = async (req, res) => {
+  try {
+    const { storyId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(storyId)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Story not found',
+      });
+    }
+
+    const story = await Story.findById(storyId).populate('highlight_id', 'name');
+
+    if (!story) {
+      return res.status(404).json({
+        success: false,
+        message: 'Story not found',
+      });
+    }
+
+    // basename() keeps a stored filename from ever escaping the stories folder
+    const storedName = path.basename(story.media_file);
+    const filePath = path.join(__dirname, '..', 'stories', storedName);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Story file is no longer available',
+      });
+    }
+
+    // res.download() sets Content-Disposition: attachment, which is what
+    // actually triggers a save. The <a download> attribute alone would not work
+    // here because the API and the frontend are on different origins.
+    res.download(filePath, buildDownloadName(story, storedName), (err) => {
+      if (err && !res.headersSent) {
+        console.error('Download story error:', err.message);
+        res.status(500).json({
+          success: false,
+          message: 'Failed to download story',
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Download story error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to download story',
     });
   }
 };

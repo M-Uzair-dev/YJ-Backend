@@ -11,10 +11,14 @@ const {
   uploadStory,
   deleteStory,
   moveStory,
+  downloadStory,
 } = require('../controllers/highlightController');
 
 // Public - anyone can view highlights (landing page)
 router.get('/', getHighlights);
+
+// Public - download a story's media file
+router.get('/stories/:storyId/download', downloadStory);
 
 // Admin - highlight CRUD
 router.post('/', protect, authorize('admin'), createHighlight);

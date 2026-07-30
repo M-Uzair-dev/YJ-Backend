@@ -1,12 +1,8 @@
 const UpgradeRequest = require('../models/UpgradeRequest');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
-
-const PLAN_PRICING = {
-  knowic: { price: 24, direct: 16, passive: 2 },
-  learnic: { price: 59, direct: 40, passive: 4 },
-  masteric: { price: 130, direct: 85, passive: 7 },
-};
+const Discount = require('../models/Discount');
+const { PLAN_PRICING, quoteDiscount } = require('../utils/pricing');
 
 // Create upgrade request
 exports.createUpgradeRequest = async (req, res) => {
@@ -140,7 +136,7 @@ exports.referrerApproveRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { discounted, discountAmount, originalPrice, finalPrice } = req.body;
+    const { discounted } = req.body;
 
     const upgradeRequest = await UpgradeRequest.findById(id);
     if (!upgradeRequest) {
@@ -168,13 +164,24 @@ exports.referrerApproveRequest = async (req, res) => {
     upgradeRequest.proof_image = proof_image;
     upgradeRequest.status = 'user_approved';
 
-    // Add discount fields if this is a discounted upgrade
-    if (discounted === 'true' || discounted === true) {
-      upgradeRequest.discounted = true;
-      upgradeRequest.discountAmount = parseFloat(discountAmount) || 0;
-      upgradeRequest.originalPrice = parseFloat(originalPrice) || 0;
-      upgradeRequest.finalPrice = parseFloat(finalPrice) || 0;
-    }
+    // An upgrade is always paid by the new referrer, never a self purchase, so
+    // the payable base is the plan price minus the commission they keep. The
+    // client only opts in - the percentage and amounts are resolved server-side
+    // from the live discount settings.
+    const wantsDiscount = discounted === 'true' || discounted === true;
+    const discountDoc = wantsDiscount ? await Discount.findOne() : null;
+    const quote = quoteDiscount({
+      discountDoc,
+      plan: upgradeRequest.new_plan,
+      isSelfPurchase: false,
+      useDiscount: wantsDiscount,
+    });
+
+    upgradeRequest.discounted = quote.applied;
+    upgradeRequest.discountPercent = quote.percent;
+    upgradeRequest.discountAmount = quote.discountAmount;
+    upgradeRequest.originalPrice = quote.originalPrice;
+    upgradeRequest.finalPrice = quote.finalPrice;
 
     await upgradeRequest.save();
 

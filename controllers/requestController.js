@@ -2,13 +2,8 @@ const mongoose = require("mongoose");
 const Request = require("../models/Request");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
-
-// Plan pricing structure
-const PLAN_PRICING = {
-  knowic: { price: 24, direct: 16, passive: 2 },
-  learnic: { price: 59, direct: 40, passive: 4 },
-  masteric: { price: 130, direct: 85, passive: 7 },
-};
+const Discount = require("../models/Discount");
+const { PLAN_PRICING, getBaseAmount, quoteDiscount } = require("../utils/pricing");
 
 // Plan hierarchy rules
 const PLAN_HIERARCHY = {
@@ -22,7 +17,7 @@ const PLAN_HIERARCHY = {
 // @access  Private
 exports.createRequest = async (req, res) => {
   try {
-    const { user_id, plan, discounted, discountAmount, originalPrice, finalPrice } = req.body;
+    const { user_id, plan, discounted } = req.body;
     const sender_id = req.user._id;
 
     // Check if file was uploaded
@@ -101,23 +96,33 @@ exports.createRequest = async (req, res) => {
       });
     }
 
-    // Create request with discount information if provided
-    const requestData = {
+    // A self purchase pays full price; a referrer buying for their referral only
+    // remits the price minus the commission they keep.
+    const isSelfPurchase = user_id.toString() === sender_id.toString();
+
+    // The client only opts IN to a discount - the percentage and the resulting
+    // amounts are always resolved server-side from the live discount settings so
+    // they cannot be tampered with in the request body.
+    const wantsDiscount = discounted === "true" || discounted === true;
+    const discountDoc = wantsDiscount ? await Discount.findOne() : null;
+    const quote = quoteDiscount({
+      discountDoc,
+      plan,
+      isSelfPurchase,
+      useDiscount: wantsDiscount,
+    });
+
+    const request = await Request.create({
       user_id,
       sender_id,
       proof_image,
       plan,
-    };
-
-    // Add discount fields if this is a discounted request
-    if (discounted === 'true' || discounted === true) {
-      requestData.discounted = true;
-      requestData.discountAmount = parseFloat(discountAmount) || 0;
-      requestData.originalPrice = parseFloat(originalPrice) || 0;
-      requestData.finalPrice = parseFloat(finalPrice) || 0;
-    }
-
-    const request = await Request.create(requestData);
+      discounted: quote.applied,
+      discountPercent: quote.percent,
+      discountAmount: quote.discountAmount,
+      originalPrice: quote.originalPrice,
+      finalPrice: quote.finalPrice,
+    });
 
     const populatedRequest = await Request.findById(request._id)
       .populate("user_id", "name email")
@@ -167,18 +172,16 @@ exports.getAllRequests = async (req, res) => {
 
     // Add expected payment amount to each request
     const requestsWithPayment = requests.map((request) => {
-      const planPricing = PLAN_PRICING[request.plan];
       const isSelfApproval = request.user_id._id.toString() === request.sender_id._id.toString();
 
-      // If request has discount info, use finalPrice; otherwise calculate normally
-      let expectedPayment;
-      if (request.discounted && request.finalPrice) {
-        expectedPayment = request.finalPrice;
-      } else {
-        expectedPayment = isSelfApproval
-          ? planPricing.price
-          : planPricing.price - planPricing.direct;
-      }
+      // Use the price recorded at purchase time when present. Checking for a
+      // number rather than truthiness keeps a legitimate $0 total (a 100%
+      // discount) from falling through to the undiscounted amount.
+      const hasRecordedPrice =
+        request.discounted && typeof request.finalPrice === "number";
+      const expectedPayment = hasRecordedPrice
+        ? request.finalPrice
+        : getBaseAmount(request.plan, isSelfApproval);
 
       return {
         ...request.toObject(),
