@@ -247,10 +247,13 @@ exports.approveRequest = async (req, res) => {
     user.status = "active";
     user.plan = request.plan;
 
-    // If this is a discounted request, mark user as discounted (no passive income)
-    if (request.discounted) {
-      user.discounted = true;
-    }
+    // Record whether the purchase that placed this user under their referrer was
+    // discounted. This is what suppresses passive income later: none of THIS
+    // user's future sales will pay passive to their referrer. A self purchase
+    // has no referrer to suppress, so it never sets the flag.
+    const isSelfPurchase =
+      request.user_id.toString() === request.sender_id.toString();
+    user.discounted = !isSelfPurchase && request.discounted === true;
 
     await user.save({ session });
 
@@ -280,16 +283,19 @@ exports.approveRequest = async (req, res) => {
         { session }
       );
 
-      // Give passive income to sender's referrer (if exists AND purchaser is not discounted)
+      // Give passive income to sender's referrer, unless the SENDER themselves
+      // was onboarded at a discount. The discount status of this sale is
+      // irrelevant here - what matters is how the seller got their own plan. If
+      // their referrer bought it for them at a discount, that referrer forfeits
+      // passive income on everything the seller goes on to sell.
       if (sender.referral_of) {
         const grandReferrer = await User.findById(sender.referral_of).session(
           session
         );
-        // Only give passive income if the PURCHASER (user) is NOT a discounted user
-        // Check if request.discounted is explicitly true (handles null/undefined as false)
-        const isPurchaserDiscounted = request.discounted === true;
+        // Explicit true check handles null/undefined on legacy users as false
+        const isSenderDiscounted = sender.discounted === true;
 
-        if (grandReferrer && !isPurchaserDiscounted) {
+        if (grandReferrer && !isSenderDiscounted) {
           grandReferrer.passive_income += pricing.passive;
           grandReferrer.balance += pricing.passive;
           await grandReferrer.save({ session });

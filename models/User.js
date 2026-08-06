@@ -62,6 +62,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // True when the purchase that placed this user under their current referrer
+    // was made at a discount. It suppresses passive income for that referrer on
+    // every sale this user makes from then on - not just the discounted one.
+    // Rewritten in both directions by upgrades, since an upgrade reassigns the
+    // user to a new referrer. Never set by a self purchase (no referrer exists).
     discounted: {
       type: Boolean,
       default: false,

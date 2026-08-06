@@ -277,6 +277,12 @@ exports.approveUpgradeRequest = async (req, res) => {
     // Update user's plan and referral_of
     user.plan = upgradeRequest.new_plan;
     user.referral_of = upgradeRequest.new_referrer_id;
+
+    // An upgrade moves the user under a new referrer who had no part in any
+    // earlier discount, so the flag is rewritten from this purchase in both
+    // directions - a full price upgrade clears a flag set at signup.
+    user.discounted = upgradeRequest.discounted === true;
+
     await user.save();
 
     // Give direct commission to new referrer
@@ -291,13 +297,15 @@ exports.approveUpgradeRequest = async (req, res) => {
       amount: pricing.direct,
     });
 
-    // Give passive commission to new referrer's referrer (if exists AND upgrade is not discounted)
+    // Give passive commission to the new referrer's own referrer, unless the new
+    // referrer was themselves onboarded at a discount. As with signups, this
+    // keys off how the SELLER got their plan, not off this sale's discount.
     if (newReferrer.referral_of) {
       const grandReferrer = await User.findById(newReferrer.referral_of);
-      // Only give passive income if the upgrade is NOT discounted
-      const isUpgradeDiscounted = upgradeRequest.discounted === true;
+      // Explicit true check handles null/undefined on legacy users as false
+      const isSellerDiscounted = newReferrer.discounted === true;
 
-      if (grandReferrer && !isUpgradeDiscounted) {
+      if (grandReferrer && !isSellerDiscounted) {
         grandReferrer.passive_income += pricing.passive;
         grandReferrer.balance += pricing.passive;
         await grandReferrer.save();
