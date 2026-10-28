@@ -26,6 +26,9 @@ const { startResetJobs } = require("./jobs/resetJobs");
 // Initialize express app
 const app = express();
 
+// Trust the nginx reverse proxy so req.ip (and rate limiting) uses the real client IP
+app.set("trust proxy", 1);
+
 // Set server timeout for large file uploads (10 minutes)
 app.timeout = 600000; // 10 minutes in milliseconds
 
